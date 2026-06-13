@@ -1,0 +1,1002 @@
+  2500→    });
+  2501→
+  2502→    const tribesWithStats = tribes.map((tribe) => {
+  2503→      const voterCount = tribe.voters.length;
+  2504→      const votedCount = tribe.voters.filter((v) => v.votedOnDay).length;
+  2505→      const avgConfidence = voterCount > 0
+  2506→        ? Math.round((tribe.voters.reduce((sum, v) => sum + v.supportDegree, 0) / voterCount) * 10) / 10
+  2507→        : 0;
+  2508→
+  2509→      return {
+  2510→        id: tribe.id,
+  2511→        name: tribe.name,
+  2512→        leaderName: 'شيخ العشيرة',
+  2513→        leaderPhone: '',
+  2514→        influence: 3,
+  2515→        governorate: 'ذي قار',
+  2516→        district: district || 'الغراف',
+  2517→        notes: `تحتوي على ${tribe.subTribes.length} فخذ/بيت مضاف`,
+  2518→        voterCount,
+  2519→        votedCount,
+  2520→        votedPercentage: voterCount > 0 ? Math.round((votedCount / voterCount) * 100) : 0,
+  2521→        avgConfidence,
+  2522→        subTribes: tribe.subTribes,
+  2523→        createdAt: new Date().toISOString(),
+  2524→      };
+  2525→    });
+  2526→
+  2527→    return NextResponse.json(tribesWithStats);
+  2528→  } catch (error) {
+  2529→    console.error('Error fetching tribes:', error);
+  2530→    return NextResponse.json({ error: 'فشل في جلب العشائر' }, { status: 500 });
+  2531→  }
+  2532→}
+  2533→
+  2534→export async function POST(request: NextRequest) {
+  2535→  try {
+  2536→    const authResult = await requireAuth(request);
+  2537→    if (authResult instanceof NextResponse) return authResult;
+  2538→    const { user } = authResult;
+  2539→    if (!checkMethodPermission(user.role, 'POST', 'tribes')) {
+  2540→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  2541→    }
+  2542→    const body = await request.json();
+  2543→    const { name, subTribes } = body;
+  2544→
+  2545→    if (!name) {
+  2546→      return NextResponse.json({ error: 'اسم العشيرة مطلوب' }, { status: 400 });
+  2547→    }
+  2548→
+  2549→    const existingTribe = await db.tribe.findUnique({ where: { name } });
+  2550→    if (existingTribe) {
+  2551→      return NextResponse.json({ error: 'العشيرة مسجلة مسبقاً' }, { status: 409 });
+  2552→    }
+  2553→
+  2554→    const tribe = await db.tribe.create({
+  2555→      data: {
+  2556→        name,
+  2557→        subTribes: subTribes ? {
+  2558→          create: subTribes.map((st: string) => ({ name: st }))
+  2559→        } : undefined,
+  2560→      },
+  2561→      include: { subTribes: true }
+  2562→    });
+  2563→
+  2564→    return NextResponse.json(tribe, { status: 201 });
+  2565→  } catch (error) {
+  2566→    console.error('Error creating tribe:', error);
+  2567→    return NextResponse.json({ error: 'فشل في إنشاء العشيرة' }, { status: 500 });
+  2568→  }
+  2569→}
+  2570→```
+  2571→
+  2572→## `src/app/api/tribes/[id]/route.ts`
+  2573→
+  2574→```typescript
+  2575→import { NextRequest, NextResponse } from 'next/server';
+  2576→import { db } from '@/lib/db';
+  2577→import { requireAuth, checkMethodPermission } from '@/lib/auth-guard';
+  2578→
+  2579→export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  2580→  try {
+  2581→    const authResult = await requireAuth(request);
+  2582→    if (authResult instanceof NextResponse) return authResult;
+  2583→    const { user } = authResult;
+  2584→    if (!checkMethodPermission(user.role, 'GET', 'tribes')) {
+  2585→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  2586→    }
+  2587→
+  2588→    const { id } = await params;
+  2589→    const tribe = await db.tribe.findUnique({
+  2590→      where: { id },
+  2591→      include: { subTribes: true, voters: true, electionKeys: true }
+  2592→    });
+  2593→
+  2594→    if (!tribe) {
+  2595→      return NextResponse.json({ error: 'العشيرة غير موجودة' }, { status: 404 });
+  2596→    }
+  2597→
+  2598→    return NextResponse.json(tribe);
+  2599→  } catch (error) {
+  2600→    console.error('Error fetching tribe:', error);
+  2601→    return NextResponse.json({ error: 'فشل في جلب بيانات العشيرة' }, { status: 500 });
+  2602→  }
+  2603→}
+  2604→
+  2605→export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  2606→  try {
+  2607→    const authResult = await requireAuth(request);
+  2608→    if (authResult instanceof NextResponse) return authResult;
+  2609→    const { user } = authResult;
+  2610→    if (!checkMethodPermission(user.role, 'PUT', 'tribes')) {
+  2611→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  2612→    }
+  2613→
+  2614→    const { id } = await params;
+  2615→    const body = await request.json();
+  2616→    const { name } = body;
+  2617→
+  2618→    const tribe = await db.tribe.update({
+  2619→      where: { id },
+  2620→      data: { name }
+  2621→    });
+  2622→
+  2623→    return NextResponse.json(tribe);
+  2624→  } catch (error) {
+  2625→    console.error('Error updating tribe:', error);
+  2626→    return NextResponse.json({ error: 'فشل في تحديث بيانات العشيرة' }, { status: 500 });
+  2627→  }
+  2628→}
+  2629→
+  2630→export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  2631→  try {
+  2632→    const authResult = await requireAuth(request);
+  2633→    if (authResult instanceof NextResponse) return authResult;
+  2634→    const { user } = authResult;
+  2635→    if (!checkMethodPermission(user.role, 'DELETE', 'tribes')) {
+  2636→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  2637→    }
+  2638→
+  2639→    const { id } = await params;
+  2640→    await db.tribe.delete({ where: { id } });
+  2641→    return NextResponse.json({ success: true });
+  2642→  } catch (error) {
+  2643→    console.error('Error deleting tribe:', error);
+  2644→    return NextResponse.json({ error: 'فشل في حذف العشيرة' }, { status: 500 });
+  2645→  }
+  2646→}
+  2647→```
+  2648→
+  2649→## `src/app/api/volunteers/route.ts`
+  2650→
+  2651→```typescript
+  2652→import { NextRequest, NextResponse } from 'next/server';
+  2653→import { requireAuth, checkMethodPermission } from '@/lib/auth-guard';
+  2654→
+  2655→let mockVolunteers = [
+  2656→  {
+  2657→    id: 'vol-1',
+  2658→    fullName: 'أحمد صالح الكناني',
+  2659→    phone: '07712345678',
+  2660→    email: 'ahmed@election.iq',
+  2661→    role: 'FIELD_AGENT',
+  2662→    district: 'الغراف',
+  2663→    area: 'المركز',
+  2664→    pollingCenterId: 'مدرسة العراق الابتدائية',
+  2665→    status: 'ACTIVE',
+  2666→    efficiencyScore: 85.0,
+  2667→    totalAssignedTasks: 12,
+  2668→    totalCompletedTasks: 10,
+  2669→    notes: 'نشط جداً في قاطع الغراف',
+  2670→    createdAt: new Date().toISOString(),
+  2671→  },
+  2672→  {
+  2673→    id: 'vol-2',
+  2674→    fullName: 'سجاد كريم الركابي',
+  2675→    phone: '07812345679',
+  2676→    email: 'sajjad@election.iq',
+  2677→    role: 'COORDINATOR',
+  2678→    district: 'الغراف',
+  2679→    area: 'آل سهلان',
+  2680→    pollingCenterId: 'مدرسة الفرات للبنين',
+  2681→    status: 'ACTIVE',
+  2682→    efficiencyScore: 90.0,
+  2683→    totalAssignedTasks: 8,
+  2684→    totalCompletedTasks: 8,
+  2685→    notes: 'مسؤول التنسيق الميداني للعشائر',
+  2686→    createdAt: new Date().toISOString(),
+  2687→  }
+  2688→];
+  2689→
+  2690→export async function GET(request: NextRequest) {
+  2691→  try {
+  2692→    const authResult = await requireAuth(request);
+  2693→    if (authResult instanceof NextResponse) return authResult;
+  2694→    const { user } = authResult;
+  2695→    if (!checkMethodPermission(user.role, 'GET', 'volunteers')) {
+  2696→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  2697→    }
+  2698→
+  2699→    return NextResponse.json(mockVolunteers);
+  2700→  } catch (error) {
+  2701→    console.error('Error fetching volunteers:', error);
+  2702→    return NextResponse.json({ error: 'فشل في جلب المتطوعين' }, { status: 500 });
+  2703→  }
+  2704→}
+  2705→
+  2706→export async function POST(request: NextRequest) {
+  2707→  try {
+  2708→    const authResult = await requireAuth(request);
+  2709→    if (authResult instanceof NextResponse) return authResult;
+  2710→    const { user } = authResult;
+  2711→    if (!checkMethodPermission(user.role, 'POST', 'volunteers')) {
+  2712→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  2713→    }
+  2714→
+  2715→    const body = await request.json();
+  2716→    const { fullName, phone, email, role, district, area, pollingCenterId, status, efficiencyScore, notes } = body;
+  2717→
+  2718→    const newVol = {
+  2719→      id: `vol-${Date.now()}`,
+  2720→      fullName,
+  2721→      phone,
+  2722→      email: email || '',
+  2723→      role: role || 'FIELD_AGENT',
+  2724→      district: district || '',
+  2725→      area: area || '',
+  2726→      pollingCenterId: pollingCenterId || '',
+  2727→      status: status || 'ACTIVE',
+  2728→      efficiencyScore: efficiencyScore ? parseFloat(efficiencyScore) : 80.0,
+  2729→      totalAssignedTasks: 0,
+  2730→      totalCompletedTasks: 0,
+  2731→      notes: notes || '',
+  2732→      createdAt: new Date().toISOString(),
+  2733→    };
+  2734→
+  2735→    mockVolunteers.push(newVol);
+  2736→    return NextResponse.json(newVol, { status: 201 });
+  2737→  } catch (error: any) {
+  2738→    return NextResponse.json({ error: error.message }, { status: 500 });
+  2739→  }
+  2740→}
+  2741→
+  2742→export async function PUT(request: NextRequest) {
+  2743→  try {
+  2744→    const authResult = await requireAuth(request);
+  2745→    if (authResult instanceof NextResponse) return authResult;
+  2746→    const { user } = authResult;
+  2747→    if (!checkMethodPermission(user.role, 'PUT', 'volunteers')) {
+  2748→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  2749→    }
+  2750→
+  2751→    const body = await request.json();
+  2752→    const { id, ...data } = body;
+  2753→
+  2754→    const idx = mockVolunteers.findIndex(v => v.id === id);
+  2755→    if (idx === -1) {
+  2756→      return NextResponse.json({ error: 'المتطوع غير موجود' }, { status: 404 });
+  2757→    }
+  2758→
+  2759→    mockVolunteers[idx] = {
+  2760→      ...mockVolunteers[idx],
+  2761→      ...data,
+  2762→    };
+  2763→
+  2764→    return NextResponse.json(mockVolunteers[idx]);
+  2765→  } catch (error: any) {
+  2766→    return NextResponse.json({ error: error.message }, { status: 500 });
+  2767→  }
+  2768→}
+  2769→
+  2770→export async function DELETE(request: NextRequest) {
+  2771→  try {
+  2772→    const authResult = await requireAuth(request);
+  2773→    if (authResult instanceof NextResponse) return authResult;
+  2774→    const { user } = authResult;
+  2775→    if (!checkMethodPermission(user.role, 'DELETE', 'volunteers')) {
+  2776→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  2777→    }
+  2778→
+  2779→    const { searchParams } = new URL(request.url);
+  2780→    const id = searchParams.get('id');
+  2781→    mockVolunteers = mockVolunteers.filter(v => v.id !== id);
+  2782→    return NextResponse.json({ success: true });
+  2783→  } catch (error: any) {
+  2784→    return NextResponse.json({ error: error.message }, { status: 500 });
+  2785→  }
+  2786→}
+  2787→```
+  2788→
+  2789→## `src/app/api/voter-stats/route.ts`
+  2790→
+  2791→```typescript
+  2792→import { NextRequest, NextResponse } from 'next/server';
+  2793→import { db } from '@/lib/db';
+  2794→import { requireAuth, checkMethodPermission } from '@/lib/auth-guard';
+  2795→
+  2796→export async function GET(request: NextRequest) {
+  2797→  try {
+  2798→    const authResult = await requireAuth(request);
+  2799→    if (authResult instanceof NextResponse) return authResult;
+  2800→    const { user } = authResult;
+  2801→    if (!checkMethodPermission(user.role, 'GET', 'voter-stats')) {
+  2802→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  2803→    }
+  2804→    
+  2805→    const voters = await db.voter.findMany({
+  2806→      where: { province: 'ذي قار' },
+  2807→      include: { tribe: true }
+  2808→    });
+  2809→
+  2810→    const totalVoters = voters.length;
+  2811→    const votedCount = voters.filter(v => v.votedOnDay).length;
+  2812→    const votedPercentage = totalVoters > 0 ? Math.round((votedCount / totalVoters) * 100) : 0;
+  2813→    const highConfidenceCount = voters.filter(v => v.supportDegree >= 4).length;
+  2814→
+  2815→    const totalSupport = voters.reduce((sum, v) => sum + (v.supportDegree || 3), 0);
+  2816→    const avgConfidence = totalVoters > 0 ? Math.round((totalSupport / totalVoters) * 10) / 10 : 3.0;
+  2817→
+  2818→    // Group by district
+  2819→    const districtGroups: Record<string, { count: number; totalSupport: number }> = {};
+  2820→    voters.forEach(v => {
+  2821→      const dist = v.district || 'الغراف';
+  2822→      if (!districtGroups[dist]) {
+  2823→        districtGroups[dist] = { count: 0, totalSupport: 0 };
+  2824→      }
+  2825→      districtGroups[dist].count++;
+  2826→      districtGroups[dist].totalSupport += v.supportDegree || 3;
+  2827→    });
+  2828→
+  2829→    const votersByDistrict = Object.entries(districtGroups).map(([district, data]) => ({
+  2830→      district,
+  2831→      count: data.count,
+  2832→      avgConfidence: Math.round((data.totalSupport / data.count) * 10) / 10,
+  2833→    }));
+  2834→
+  2835→    // Group by tribe
+  2836→    const tribeGroups: Record<string, { count: number; totalSupport: number }> = {};
+  2837→    voters.forEach(v => {
+  2838→      const t = (v as any).tribe?.name || 'غير حدد';
+  2839→      if (!tribeGroups[t]) {
+  2840→        tribeGroups[t] = { count: 0, totalSupport: 0 };
+  2841→      }
+  2842→      tribeGroups[t].count++;
+  2843→      tribeGroups[t].totalSupport += v.supportDegree || 3;
+  2844→    });
+  2845→
+  2846→    const votersByTribe = Object.entries(tribeGroups).map(([tribeName, data]) => ({
+  2847→      tribe: { id: tribeName, name: tribeName, influence: 3, district: 'الغراف' },
+  2848→      count: data.count,
+  2849→      avgConfidence: Math.round((data.totalSupport / data.count) * 10) / 10,
+  2850→    })).sort((a, b) => b.count - a.count);
+  2851→
+  2852→    // Group by supportDegree
+  2853→    const confidenceDistMap: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  2854→    voters.forEach(v => {
+  2855→      const score = v.supportDegree || 3;
+  2856→      confidenceDistMap[score] = (confidenceDistMap[score] || 0) + 1;
+  2857→    });
+  2858→
+  2859→    const confidenceDistribution = Object.entries(confidenceDistMap).map(([score, count]) => ({
+  2860→      score: parseInt(score),
+  2861→      count,
+  2862→    }));
+  2863→
+  2864→    return NextResponse.json({
+  2865→      totalVoters,
+  2866→      votedCount,
+  2867→      votedPercentage,
+  2868→      highConfidenceCount,
+  2869→      avgConfidence,
+  2870→      votersByDistrict,
+  2871→      votersByTribe,
+  2872→      confidenceDistribution,
+  2873→    });
+  2874→  } catch (error) {
+  2875→    console.error('Error in voter-stats API:', error);
+  2876→    return NextResponse.json({ error: 'فشل في جلب إحصائيات الناخبين' }, { status: 500 });
+  2877→  }
+  2878→}
+  2879→```
+  2880→
+  2881→## `src/app/api/voters/route.ts`
+  2882→
+  2883→```typescript
+  2884→import { NextRequest, NextResponse } from 'next/server';
+  2885→import { db } from '@/lib/db';
+  2886→import { requireAuth, checkMethodPermission } from '@/lib/auth-guard';
+  2887→
+  2888→export async function GET(request: NextRequest) {
+  2889→  try {
+  2890→    const authResult = await requireAuth(request);
+  2891→    if (authResult instanceof NextResponse) return authResult;
+  2892→    const { user } = authResult;
+  2893→    if (!checkMethodPermission(user.role, 'GET', 'voters')) {
+  2894→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  2895→    }
+  2896→    const { searchParams } = new URL(request.url);
+  2897→    const district = searchParams.get('district');
+  2898→    const tribeId = searchParams.get('tribeId');
+  2899→    const status = searchParams.get('status');
+  2900→    const search = searchParams.get('search');
+  2901→    const keyId = searchParams.get('keyId');
+  2902→    const page = parseInt(searchParams.get('page') || '1');
+  2903→    const limit = parseInt(searchParams.get('limit') || '50');
+  2904→
+  2905→    const where: Record<string, any> = {};
+  2906→
+  2907→    if (district) where.district = district;
+  2908→    if (tribeId) where.tribeId = tribeId;
+  2909→    if (status) where.status = status;
+  2910→    if (keyId) where.keyId = keyId;
+  2911→    if (search) {
+  2912→      where.OR = [
+  2913→        { firstName: { contains: search } },
+  2914→        { fatherName: { contains: search } },
+  2915→        { phone: { contains: search } },
+  2916→      ];
+  2917→    }
+  2918→
+  2919→    const [voters, total] = await Promise.all([
+  2920→      db.voter.findMany({
+  2921→        where,
+  2922→        include: {
+  2923→          electionKey: { select: { id: true, keyCode: true, firstName: true, fatherName: true } },
+  2924→          tribe: true,
+  2925→          subTribe: true,
+  2926→        },
+  2927→        orderBy: { createdAt: 'desc' },
+  2928→        skip: (page - 1) * limit,
+  2929→        take: limit,
+  2930→      }),
+  2931→      db.voter.count({ where }),
+  2932→    ]);
+  2933→
+  2934→    // For frontend compatibility, map fields like fullName and phoneNumber
+  2935→    const mappedVoters = voters.map((v) => ({
+  2936→      ...v,
+  2937→      fullName: `${v.firstName} ${v.fatherName} ${v.grandfatherName} ${v.fourthName}`.trim(),
+  2938→      phoneNumber: v.phone,
+  2939→      nickname: v.tribe?.name || 'غير محدد',
+  2940→    }));
+  2941→
+  2942→    return NextResponse.json({ voters: mappedVoters, total, page, limit });
+  2943→  } catch (error) {
+  2944→    console.error('Error fetching voters:', error);
+  2945→    return NextResponse.json({ error: 'فشل في جلب الناخبين' }, { status: 500 });
+  2946→  }
+  2947→}
+  2948→
+  2949→export async function POST(request: NextRequest) {
+  2950→  try {
+  2951→    const authResult = await requireAuth(request);
+  2952→    if (authResult instanceof NextResponse) return authResult;
+  2953→    const { user } = authResult;
+  2954→    if (!checkMethodPermission(user.role, 'POST', 'voters')) {
+  2955→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  2956→    }
+  2957→
+  2958→    const body = await request.json();
+  2959→    const {
+  2960→      firstName, fatherName, grandfatherName, fourthName,
+  2961→      tribe, gender, birthDate, phone, education, profession,
+  2962→      province, district, subDistrict, pollingCenter, ballotStation,
+  2963→      status, supportDegree, supportReason, voterCategory, conversionPath,
+  2964→      keyId, relationship, influenceRate, isPrimaryFollow,
+  2965→      lastContactDate, contactResult, nextAction, followUpDate,
+  2966→      tribeId, subTribeId,
+  2967→      maritalStatus, familySize, nationalId, area, socialMedia, firstContactDate
+  2968→    } = body;
+  2969→
+  2970→    const resolvedKeyId = keyId || body.electoralKeyId;
+  2971→    if (!resolvedKeyId) {
+  2972→      return NextResponse.json({ error: 'المفتاح الانتخابي المسؤول مطلوب' }, { status: 400 });
+  2973→    }
+  2974→
+  2975→    // Handle tribe resolve
+  2976→    let resolvedTribeId = tribeId || null;
+  2977→    if (!resolvedTribeId && tribe) {
+  2978→      const foundTribe = await db.tribe.findUnique({ where: { name: tribe } });
+  2979→      if (foundTribe) {
+  2980→        resolvedTribeId = foundTribe.id;
+  2981→      } else {
+  2982→        const newTribe = await db.tribe.create({ data: { name: tribe } });
+  2983→        resolvedTribeId = newTribe.id;
+  2984→      }
+  2985→    }
+  2986→
+  2987→    // Resolve date and JSON fields
+  2988→    const parsedBirthDate = birthDate || body.dateOfBirth ? new Date(birthDate || body.dateOfBirth) : new Date();
+  2989→    const resolvedPhone = phone || body.phoneNumber || null;
+  2990→    const resolvedEducation = education || body.educationLevel || null;
+  2991→    
+  2992→    let parsedSocialMedia = null;
+  2993→    if (socialMedia) {
+  2994→      try {
+  2995→        parsedSocialMedia = typeof socialMedia === 'string' ? JSON.parse(socialMedia) : socialMedia;
+  2996→      } catch (e) {
+  2997→        console.error('Failed to parse social media JSON:', e);
+  2998→      }
+  2999→    }
+  3000→
+  3001→    const voter = await db.voter.create({
+  3002→      data: {
+  3003→        firstName,
+  3004→        fatherName,
+  3005→        grandfatherName,
+  3006→        fourthName,
+  3007→        gender: gender || body.gender || 'ذكر',
+  3008→        birthDate: parsedBirthDate,
+  3009→        phone: resolvedPhone,
+  3010→        education: resolvedEducation,
+  3011→        profession: profession || null,
+  3012→        maritalStatus: maritalStatus || body.maritalStatus || null,
+  3013→        familySize: familySize !== undefined ? Number(familySize) : (body.familySize !== undefined ? Number(body.familySize) : null),
+  3014→        nationalId: nationalId || body.nationalId || null,
+  3015→        area: area || body.area || null,
+  3016→        socialMedia: parsedSocialMedia ?? undefined,
+  3017→        firstContactDate: firstContactDate ? new Date(firstContactDate) : (body.firstContactDate ? new Date(body.firstContactDate) : null),
+  3018→        province: province || 'ذي قار',
+  3019→        district: district || 'الغراف',
+  3020→        subDistrict: subDistrict || 'المركز',
+  3021→        pollingCenter: pollingCenter || body.pollingCenterName || 'مدرسة العراق الابتدائية',
+  3022→        ballotStation: ballotStation || body.pollingCenterId || 'محطة رقم 1',
+  3023→        status: status || (voterCategory === 'مؤيد' ? 'SUPPORTIVE' : voterCategory === 'ضعيف' ? 'OPPOSED' : 'NEUTRAL'),
+  3024→        supportDegree: supportDegree !== undefined ? Number(supportDegree) : (body.confidenceScore ? Number(body.confidenceScore) : 3),
+  3025→        supportReason: supportReason || null,
+  3026→        voterCategory: voterCategory || body.voterCategory || 'محايد',
+  3027→        conversionPath: conversionPath || null,
+  3028→        votedOnDay: false,
+  3029→        keyId: resolvedKeyId,
+  3030→        relationship: relationship || null,
+  3031→        influenceRate: influenceRate !== undefined ? Number(influenceRate) : 50,
+  3032→        isPrimaryFollow: isPrimaryFollow !== undefined ? Boolean(isPrimaryFollow) : true,
+  3033→        lastContactDate: lastContactDate ? new Date(lastContactDate) : null,
+  3034→        contactResult: contactResult || null,
+  3035→        nextAction: nextAction || null,
+  3036→        followUpDate: followUpDate ? new Date(followUpDate) : null,
+  3037→        tribeId: resolvedTribeId,
+  3038→        subTribeId: subTribeId || null,
+  3039→        latitude: body.latitude !== undefined && body.latitude !== null ? Number(body.latitude) : null,
+  3040→        longitude: body.longitude !== undefined && body.longitude !== null ? Number(body.longitude) : null,
+  3041→        gpsVerified: body.gpsVerified !== undefined ? Boolean(body.gpsVerified) : false,
+  3042→        isRegistryVerified: body.isRegistryVerified !== undefined ? Boolean(body.isRegistryVerified) : false,
+  3043→        registryVoterId: body.registryVoterId || null,
+  3044→      },
+  3045→      include: {
+  3046→        electionKey: { select: { id: true, keyCode: true, firstName: true, fatherName: true } },
+  3047→        tribe: true,
+  3048→        subTribe: true,
+  3049→      },
+  3050→    });
+  3051→
+  3052→    const mapped = {
+  3053→      ...voter,
+  3054→      fullName: `${voter.firstName} ${voter.fatherName} ${voter.grandfatherName} ${voter.fourthName}`.trim(),
+  3055→      phoneNumber: voter.phone,
+  3056→      nickname: (voter as any).tribe?.name || 'غير محدد',
+  3057→    };
+  3058→
+  3059→    return NextResponse.json(mapped, { status: 201 });
+  3060→  } catch (error) {
+  3061→    console.error('Error creating voter:', error);
+  3062→    return NextResponse.json({ error: 'فشل في إنشاء الناخب' }, { status: 500 });
+  3063→  }
+  3064→}
+  3065→```
+  3066→
+  3067→## `src/app/api/voters/stats/route.ts`
+  3068→
+  3069→```typescript
+  3070→import { NextRequest, NextResponse } from 'next/server';
+  3071→import { db } from '@/lib/db';
+  3072→import { requireRole } from '@/lib/auth-guard';
+  3073→
+  3074→export async function GET(request: NextRequest) {
+  3075→  try {
+  3076→    const auth = await requireRole(request, ['ADMIN', 'KEY_USER', 'OBSERVER']);
+  3077→    if (auth instanceof NextResponse) return auth;
+  3078→    const voters = await db.voter.findMany({
+  3079→      where: { province: 'ذي قار' },
+  3080→      include: { tribe: true }
+  3081→    });
+  3082→
+  3083→    const totalVoters = voters.length;
+  3084→    const votedCount = voters.filter(v => v.votedOnDay).length;
+  3085→    const votedPercentage = totalVoters > 0 ? Math.round((votedCount / totalVoters) * 100) : 0;
+  3086→    const highConfidenceCount = voters.filter(v => v.supportDegree >= 4).length;
+  3087→
+  3088→    const totalSupport = voters.reduce((sum, v) => sum + (v.supportDegree || 3), 0);
+  3089→    const avgConfidence = totalVoters > 0 ? Math.round((totalSupport / totalVoters) * 10) / 10 : 3.0;
+  3090→
+  3091→    // Group by district
+  3092→    const districtGroups: Record<string, { count: number; totalSupport: number }> = {};
+  3093→    voters.forEach(v => {
+  3094→      const dist = v.district || 'الغراف';
+  3095→      if (!districtGroups[dist]) {
+  3096→        districtGroups[dist] = { count: 0, totalSupport: 0 };
+  3097→      }
+  3098→      districtGroups[dist].count++;
+  3099→      districtGroups[dist].totalSupport += v.supportDegree || 3;
+  3100→    });
+  3101→
+  3102→    const votersByDistrict = Object.entries(districtGroups).map(([district, data]) => ({
+  3103→      district,
+  3104→      count: data.count,
+  3105→      avgConfidence: Math.round((data.totalSupport / data.count) * 10) / 10,
+  3106→    }));
+  3107→
+  3108→    // Group by tribe
+  3109→    const tribeGroups: Record<string, { count: number; totalSupport: number }> = {};
+  3110→    voters.forEach(v => {
+  3111→      const t = (v as any).tribe?.name || 'غير محدد';
+  3112→      if (!tribeGroups[t]) {
+  3113→        tribeGroups[t] = { count: 0, totalSupport: 0 };
+  3114→      }
+  3115→      tribeGroups[t].count++;
+  3116→      tribeGroups[t].totalSupport += v.supportDegree || 3;
+  3117→    });
+  3118→
+  3119→    const votersByTribe = Object.entries(tribeGroups).map(([tribeName, data]) => ({
+  3120→      tribe: { id: tribeName, name: tribeName, influence: 3, district: 'الغراف' },
+  3121→      count: data.count,
+  3122→      avgConfidence: Math.round((data.totalSupport / data.count) * 10) / 10,
+  3123→    })).sort((a, b) => b.count - a.count);
+  3124→
+  3125→    // Group by supportDegree
+  3126→    const confidenceDistMap: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  3127→    voters.forEach(v => {
+  3128→      const score = v.supportDegree || 3;
+  3129→      confidenceDistMap[score] = (confidenceDistMap[score] || 0) + 1;
+  3130→    });
+  3131→
+  3132→    const confidenceDistribution = Object.entries(confidenceDistMap).map(([score, count]) => ({
+  3133→      score: parseInt(score),
+  3134→      count,
+  3135→    }));
+  3136→
+  3137→    return NextResponse.json({
+  3138→      totalVoters,
+  3139→      votedCount,
+  3140→      votedPercentage,
+  3141→      highConfidenceCount,
+  3142→      avgConfidence,
+  3143→      votersByDistrict,
+  3144→      votersByTribe,
+  3145→      confidenceDistribution,
+  3146→    });
+  3147→  } catch (error) {
+  3148→    console.error('Error fetching voter stats:', error);
+  3149→    return NextResponse.json({ error: 'فشل في جلب إحصائيات الناخبين' }, { status: 500 });
+  3150→  }
+  3151→}
+  3152→```
+  3153→
+  3154→## `src/app/api/voters/[id]/route.ts`
+  3155→
+  3156→```typescript
+  3157→import { NextRequest, NextResponse } from 'next/server';
+  3158→import { db } from '@/lib/db';
+  3159→import { requireAuth, checkMethodPermission } from '@/lib/auth-guard';
+  3160→
+  3161→export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  3162→  try {
+  3163→    const authResult = await requireAuth(request);
+  3164→    if (authResult instanceof NextResponse) return authResult;
+  3165→    const { user } = authResult;
+  3166→    if (!checkMethodPermission(user.role, 'GET', 'voters')) {
+  3167→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  3168→    }
+  3169→
+  3170→    const { id } = await params;
+  3171→    const voter = await db.voter.findUnique({
+  3172→      where: { id },
+  3173→      include: {
+  3174→        electionKey: { select: { id: true, keyCode: true, firstName: true, fatherName: true } },
+  3175→        tribe: true,
+  3176→        subTribe: true,
+  3177→      },
+  3178→    });
+  3179→
+  3180→    if (!voter) {
+  3181→      return NextResponse.json({ error: 'الناخب غير موجود' }, { status: 404 });
+  3182→    }
+  3183→
+  3184→    const mapped = {
+  3185→      ...voter,
+  3186→      fullName: `${voter.firstName} ${voter.fatherName} ${voter.grandfatherName} ${voter.fourthName}`.trim(),
+  3187→      phoneNumber: voter.phone,
+  3188→      nickname: voter.tribe?.name || 'غير محدد',
+  3189→    };
+  3190→
+  3191→    return NextResponse.json(mapped);
+  3192→  } catch (error) {
+  3193→    console.error('Error fetching voter:', error);
+  3194→    return NextResponse.json({ error: 'فشل في جلب بيانات الناخب' }, { status: 500 });
+  3195→  }
+  3196→}
+  3197→
+  3198→export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  3199→  try {
+  3200→    const authResult = await requireAuth(request);
+  3201→    if (authResult instanceof NextResponse) return authResult;
+  3202→    const { user } = authResult;
+  3203→    if (!checkMethodPermission(user.role, 'PUT', 'voters')) {
+  3204→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  3205→    }
+  3206→
+  3207→    const { id } = await params;
+  3208→    const body = await request.json();
+  3209→
+  3210→    let parsedSocialMedia: any = undefined;
+  3211→    if (body.socialMedia !== undefined) {
+  3212→      if (body.socialMedia === null) {
+  3213→        parsedSocialMedia = null;
+  3214→      } else {
+  3215→        try {
+  3216→          parsedSocialMedia = typeof body.socialMedia === 'string' ? JSON.parse(body.socialMedia) : body.socialMedia;
+  3217→        } catch (e) {
+  3218→          console.error('Failed to parse social media JSON in PUT:', e);
+  3219→        }
+  3220→      }
+  3221→    }
+  3222→
+  3223→    const voter = await db.voter.update({
+  3224→      where: { id },
+  3225→      data: {
+  3226→        firstName: body.firstName,
+  3227→        fatherName: body.fatherName,
+  3228→        grandfatherName: body.grandfatherName,
+  3229→        fourthName: body.fourthName,
+  3230→        gender: body.gender,
+  3231→        birthDate: body.birthDate ? new Date(body.birthDate) : (body.dateOfBirth ? new Date(body.dateOfBirth) : undefined),
+  3232→        phone: body.phone !== undefined ? body.phone : body.phoneNumber,
+  3233→        education: (body.education || body.educationLevel) || undefined,
+  3234→        profession: body.profession,
+  3235→        maritalStatus: body.maritalStatus,
+  3236→        familySize: body.familySize !== undefined ? Number(body.familySize) : undefined,
+  3237→        nationalId: body.nationalId,
+  3238→        area: body.area,
+  3239→        socialMedia: parsedSocialMedia as any,
+  3240→        firstContactDate: body.firstContactDate ? new Date(body.firstContactDate) : undefined,
+  3241→        province: body.province,
+  3242→        district: body.district,
+  3243→        subDistrict: body.subDistrict,
+  3244→        pollingCenter: body.pollingCenter || body.pollingCenterName,
+  3245→        ballotStation: body.ballotStation || body.pollingCenterId,
+  3246→        status: body.status,
+  3247→        supportDegree: body.supportDegree !== undefined ? Number(body.supportDegree) : (body.confidenceScore !== undefined ? Number(body.confidenceScore) : undefined),
+  3248→        supportReason: body.supportReason,
+  3249→        voterCategory: body.voterCategory,
+  3250→        conversionPath: body.conversionPath,
+  3251→        votedOnDay: body.votedOnDay !== undefined ? Boolean(body.votedOnDay) : undefined,
+  3252→        keyId: body.keyId || body.electoralKeyId,
+  3253→        relationship: body.relationship,
+  3254→        influenceRate: body.influenceRate !== undefined ? Number(body.influenceRate) : undefined,
+  3255→        isPrimaryFollow: body.isPrimaryFollow !== undefined ? Boolean(body.isPrimaryFollow) : undefined,
+  3256→        lastContactDate: body.lastContactDate ? new Date(body.lastContactDate) : undefined,
+  3257→        contactResult: body.contactResult,
+  3258→        nextAction: body.nextAction,
+  3259→        followUpDate: body.followUpDate ? new Date(body.followUpDate) : undefined,
+  3260→        tribeId: body.tribeId,
+  3261→        subTribeId: body.subTribeId,
+  3262→        latitude: body.latitude !== undefined ? (body.latitude === null ? null : Number(body.latitude)) : undefined,
+  3263→        longitude: body.longitude !== undefined ? (body.longitude === null ? null : Number(body.longitude)) : undefined,
+  3264→        gpsVerified: body.gpsVerified !== undefined ? Boolean(body.gpsVerified) : undefined,
+  3265→        isRegistryVerified: body.isRegistryVerified !== undefined ? Boolean(body.isRegistryVerified) : undefined,
+  3266→        registryVoterId: body.registryVoterId !== undefined ? body.registryVoterId : undefined,
+  3267→      },
+  3268→      include: {
+  3269→        electionKey: { select: { id: true, keyCode: true, firstName: true, fatherName: true } },
+  3270→        tribe: true,
+  3271→        subTribe: true,
+  3272→      },
+  3273→    });
+  3274→
+  3275→    const mapped = {
+  3276→      ...voter,
+  3277→      fullName: `${voter.firstName} ${voter.fatherName} ${voter.grandfatherName} ${voter.fourthName}`.trim(),
+  3278→      phoneNumber: voter.phone,
+  3279→      nickname: voter.tribe?.name || 'غير محدد',
+  3280→    };
+  3281→
+  3282→    return NextResponse.json(mapped);
+  3283→  } catch (error) {
+  3284→    console.error('Error updating voter:', error);
+  3285→    return NextResponse.json({ error: 'فشل في تحديث بيانات الناخب' }, { status: 500 });
+  3286→  }
+  3287→}
+  3288→
+  3289→export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  3290→  try {
+  3291→    const authResult = await requireAuth(request);
+  3292→    if (authResult instanceof NextResponse) return authResult;
+  3293→    const { user } = authResult;
+  3294→    if (!checkMethodPermission(user.role, 'DELETE', 'voters')) {
+  3295→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  3296→    }
+  3297→
+  3298→    const { id } = await params;
+  3299→    await db.voter.delete({ where: { id } });
+  3300→    return NextResponse.json({ message: 'تم حذف الناخب بنجاح' });
+  3301→  } catch (error) {
+  3302→    console.error('Error deleting voter:', error);
+  3303→    return NextResponse.json({ error: 'فشل في حذف الناخب' }, { status: 500 });
+  3304→  }
+  3305→}
+  3306→```
+  3307→
+  3308→## `src/app/api/war-room/route.ts`
+  3309→
+  3310→```typescript
+  3311→import { NextRequest, NextResponse } from 'next/server';
+  3312→import { db } from '@/lib/db';
+  3313→import { requireAuth, checkMethodPermission } from '@/lib/auth-guard';
+  3314→import { calculateAllCompositeIndicators } from '@/lib/indicators-engine';
+  3315→
+  3316→export async function GET(request: NextRequest) {
+  3317→  try {
+  3318→    const authResult = await requireAuth(request);
+  3319→    if (authResult instanceof NextResponse) return authResult;
+  3320→    const { user } = authResult;
+  3321→    if (!checkMethodPermission(user.role, 'GET', 'war-room')) {
+  3322→      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+  3323→    }
+  3324→
+  3325→    // Get composite indicators (predictions/seat projection)
+  3326→    const indicators = await calculateAllCompositeIndicators();
+  3327→
+  3328→    // Get general stats
+  3329→    const voters = await db.voter.findMany({
+  3330→      where: { province: 'ذي قار' },
+  3331→    });
+  3332→
+  3333→    const totalVoters = voters.length;
+  3334→    const votedCount = voters.filter(v => v.votedOnDay).length;
+  3335→    const votedPercentage = totalVoters > 0 ? Math.round((votedCount / totalVoters) * 100) : 0;
+  3336→    const highConfidenceCount = voters.filter(v => v.supportDegree >= 4).length;
+  3337→
+  3338→    return NextResponse.json({
+  3339→      title: "غرفة العمليات الانتخابية المركزية",
+  3340→      status: "LIVE",
+  3341→      totalVoters,
+  3342→      votedCount,
+  3343→      votedPercentage,
+  3344→      highConfidenceCount,
+  3345→      projectedSeats: indicators.governorate.projectedSeats,
+  3346→      governorateGsi: indicators.governorate.gsiScore,
+  3347→      governorateEdri: indicators.governorate.edriScore,
+  3348→      districts: indicators.districts,
+  3349→    });
+  3350→  } catch (error) {
+  3351→    console.error('Error in war-room API:', error);
+  3352→    return NextResponse.json({ error: 'فشل في جلب بيانات غرفة العمليات' }, { status: 500 });
+  3353→  }
+  3354→}
+  3355→```
+  3356→
+  3357→## `src/app/globals.css`
+  3358→
+  3359→```css
+  3360→@import "tailwindcss";
+  3361→@import "tw-animate-css";
+  3362→
+  3363→@custom-variant dark (&:is(.dark *));
+  3364→
+  3365→@theme inline {
+  3366→  --color-background: var(--background);
+  3367→  --color-foreground: var(--foreground);
+  3368→  --font-sans: var(--font-geist-sans);
+  3369→  --font-mono: var(--font-geist-mono);
+  3370→  --color-sidebar-ring: var(--sidebar-ring);
+  3371→  --color-sidebar-border: var(--sidebar-border);
+  3372→  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  3373→  --color-sidebar-accent: var(--sidebar-accent);
+  3374→  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  3375→  --color-sidebar-primary: var(--sidebar-primary);
+  3376→  --color-sidebar-foreground: var(--sidebar-foreground);
+  3377→  --color-sidebar: var(--sidebar);
+  3378→  --color-chart-5: var(--chart-5);
+  3379→  --color-chart-4: var(--chart-4);
+  3380→  --color-chart-3: var(--chart-3);
+  3381→  --color-chart-2: var(--chart-2);
+  3382→  --color-chart-1: var(--chart-1);
+  3383→  --color-ring: var(--ring);
+  3384→  --color-input: var(--input);
+  3385→  --color-border: var(--border);
+  3386→  --color-destructive: var(--destructive);
+  3387→  --color-accent-foreground: var(--accent-foreground);
+  3388→  --color-accent: var(--accent);
+  3389→  --color-muted-foreground: var(--muted-foreground);
+  3390→  --color-muted: var(--muted);
+  3391→  --color-secondary-foreground: var(--secondary-foreground);
+  3392→  --color-secondary: var(--secondary);
+  3393→  --color-primary-foreground: var(--primary-foreground);
+  3394→  --color-primary: var(--primary);
+  3395→  --color-popover-foreground: var(--popover-foreground);
+  3396→  --color-popover: var(--popover);
+  3397→  --color-card-foreground: var(--card-foreground);
+  3398→  --color-card: var(--card);
+  3399→  --radius-sm: calc(var(--radius) - 4px);
+  3400→  --radius-md: calc(var(--radius) - 2px);
+  3401→  --radius-lg: var(--radius);
+  3402→  --radius-xl: calc(var(--radius) + 4px);
+  3403→
+  3404→  /* Election system custom colors */
+  3405→  --color-el-primary: var(--el-primary);
+  3406→  --color-el-primary-container: var(--el-primary-container);
+  3407→  --color-el-on-primary: var(--el-on-primary);
+  3408→  --color-el-on-primary-container: var(--el-on-primary-container);
+  3409→  --color-el-secondary: var(--el-secondary);
+  3410→  --color-el-secondary-container: var(--el-secondary-container);
+  3411→  --color-el-on-secondary: var(--el-on-secondary);
+  3412→  --color-el-on-secondary-container: var(--el-on-secondary-container);
+  3413→  --color-el-tertiary-container: var(--el-tertiary-container);
+  3414→  --color-el-surface: var(--el-surface);
+  3415→  --color-el-surface-container: var(--el-surface-container);
+  3416→  --color-el-surface-container-low: var(--el-surface-container-low);
+  3417→  --color-el-surface-container-high: var(--el-surface-container-high);
+  3418→  --color-el-surface-container-highest: var(--el-surface-container-highest);
+  3419→  --color-el-surface-variant: var(--el-surface-variant);
+  3420→  --color-el-outline: var(--el-outline);
+  3421→  --color-el-outline-variant: var(--el-outline-variant);
+  3422→  --color-el-error: var(--el-error);
+  3423→  --color-el-background: var(--el-background);
+  3424→  --color-el-on-background: var(--el-on-background);
+  3425→  --color-el-on-surface: var(--el-on-surface);
+  3426→  --color-el-on-surface-variant: var(--el-on-surface-variant);
+  3427→  --color-el-primary-fixed: var(--el-primary-fixed);
+  3428→  --color-el-primary-fixed-dim: var(--el-primary-fixed-dim);
+  3429→  --color-el-on-primary-fixed: var(--el-on-primary-fixed);
+  3430→  --color-el-on-primary-fixed-variant: var(--el-on-primary-fixed-variant);
+  3431→  --color-el-secondary-fixed: var(--el-secondary-fixed);
+  3432→  --color-el-inverse-surface: var(--el-inverse-surface);
+  3433→  --color-el-inverse-on-surface: var(--el-inverse-on-surface);
+  3434→  --color-el-error-container: var(--el-error-container);
+  3435→  --color-el-surface-dim: var(--el-surface-dim);
+  3436→  --color-el-surface-bright: var(--el-surface-bright);
+  3437→  --color-el-surface-container-lowest: var(--el-surface-container-lowest);
+  3438→}
+  3439→
+  3440→:root {
+  3441→  --font-geist-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  3442→  --font-geist-mono: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  3443→  --radius: 0.625rem;
+  3444→  --background: #f8f9ff;
+  3445→  --foreground: #0b1c30;
+  3446→  --card: #ffffff;
+  3447→  --card-foreground: #0b1c30;
+  3448→  --popover: #ffffff;
+  3449→  --popover-foreground: #0b1c30;
+  3450→  --primary: #031635;
+  3451→  --primary-foreground: #ffffff;
+  3452→  --secondary: #855300;
+  3453→  --secondary-foreground: #ffffff;
+  3454→  --muted: #e5eeff;
+  3455→  --muted-foreground: #44474e;
+  3456→  --accent: #d3e4fe;
+  3457→  --accent-foreground: #0b1c30;
+  3458→  --destructive: #ba1a1a;
+  3459→  --border: #c5c6cf;
+  3460→  --input: #c5c6cf;
+  3461→  --ring: #031635;
+  3462→  --chart-1: #031635;
+  3463→  --chart-2: #fea619;
+  3464→  --chart-3: #d3e4fe;
+  3465→  --chart-4: #1a2b4b;
+  3466→  --chart-5: #855300;
+  3467→  --sidebar: #e5eeff;
+  3468→  --sidebar-foreground: #0b1c30;
+  3469→  --sidebar-primary: #031635;
+  3470→  --sidebar-primary-foreground: #ffffff;
+  3471→  --sidebar-accent: #fea619;
+  3472→  --sidebar-accent-foreground: #684000;
+  3473→  --sidebar-border: #c5c6cf;
+  3474→  --sidebar-ring: #031635;
+  3475→
+  3476→  /* Election system design tokens */
+  3477→  --el-primary: #031635;
+  3478→  --el-primary-container: #1a2b4b;
+  3479→  --el-on-primary: #ffffff;
+  3480→  --el-on-primary-container: #8293b8;
+  3481→  --el-secondary: #855300;
+  3482→  --el-secondary-container: #fea619;
+  3483→  --el-on-secondary: #ffffff;
+  3484→  --el-on-secondary-container: #684000;
+  3485→  --el-tertiary-container: #3e2700;
+  3486→  --el-surface: #f8f9ff;
+  3487→  --el-surface-container: #e5eeff;
+  3488→  --el-surface-container-low: #eff4ff;
+  3489→  --el-surface-container-high: #dce9ff;
+  3490→  --el-surface-container-highest: #d3e4fe;
+  3491→  --el-surface-variant: #d3e4fe;
+  3492→  --el-outline: #75777f;
+  3493→  --el-outline-variant: #c5c6cf;
+  3494→  --el-error: #ba1a1a;
+  3495→  --el-background: #f8f9ff;
+  3496→  --el-on-background: #0b1c30;
+  3497→  --el-on-surface: #0b1c30;
+  3498→  --el-on-surface-variant: #44474e;
+  3499→  --el-primary-fixed: #d8e2ff;
+
+[showing lines 2500-3499 of 22247; use offset=3500 with limit to continue reading]
