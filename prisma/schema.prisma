@@ -127,6 +127,8 @@ model Voter {
   gpsVerified      Boolean     @default(false)
   isRegistryVerified Boolean   @default(false)
   registryVoterId  String?
+  checkedIn        Boolean     @default(false)
+  checkedInAt      DateTime?
   services         Service[]
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt

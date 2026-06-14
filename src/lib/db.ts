@@ -16,7 +16,7 @@ export const db =
     log:
       process.env.NODE_ENV === 'production'
         ? ['error', 'warn']
-        : ['query', 'error', 'warn'],
+        : ['error', 'warn'],
     // تحسين الاتصال مع PgBouncer
     datasourceUrl: process.env.DATABASE_URL,
   })

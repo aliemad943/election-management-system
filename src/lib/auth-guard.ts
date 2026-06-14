@@ -83,6 +83,30 @@ export async function requireRole(request: NextRequest, allowedRoles: string[]):
  * @param resource - اسم المورد (voters, electoral-keys, tribes, etc.)
  * @returns true إذا كان مسموحاً
  */
+/**
+ * ④ withAuth — Helper wrapper for API route handlers with role-based access
+ * Wraps a handler function with authentication and optional role checking
+ */
+export function withAuth(
+  handler: (req: NextRequest, ctx?: any) => Promise<NextResponse>,
+  roleMap?: Record<string, string[]>
+) {
+  return async (req: NextRequest, ctx?: any): Promise<NextResponse> => {
+    const session = await requireAuth(req);
+    if (session instanceof NextResponse) return session;
+
+    if (roleMap) {
+      const method = req.method as string;
+      const allowedRoles = roleMap[method];
+      if (allowedRoles && !allowedRoles.includes(session.user.role)) {
+        return NextResponse.json({ error: 'غير مسموح - صلاحيات غير كافية' }, { status: 403 });
+      }
+    }
+
+    return handler(req, ctx);
+  };
+}
+
 export function checkMethodPermission(role: string, method: string, resource: string): boolean {
   // ADMIN: صلاحيات كاملة
   if (role === 'ADMIN') return true;

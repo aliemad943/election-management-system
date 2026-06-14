@@ -1,94 +1,76 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { requireAuth, checkMethodPermission } from '@/lib/auth-guard';
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { withAuth } from "@/lib/auth-guard";
 
-export async function GET(request: NextRequest) {
+type SearchEntity = "voters" | "tribes" | "all";
+
+async function searchHandler(req: NextRequest): Promise<NextResponse> {
+  const { searchParams } = new URL(req.url);
+  const query = searchParams.get("q")?.trim();
+  const entity = (searchParams.get("entity") as SearchEntity) ?? "all";
+  const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 50);
+
+  if (!query || query.length < 2) {
+    return NextResponse.json({ error: "Query must be at least 2 characters" }, { status: 400 });
+  }
+
   try {
-    const authResult = await requireAuth(request);
-    if (authResult instanceof NextResponse) return authResult;
-    const { user } = authResult;
-    if (!checkMethodPermission(user.role, 'GET', 'search')) {
-      return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
-    }
+    const results: any[] = [];
+    const perEntity = entity === "all" ? Math.floor(limit / 2) : limit;
 
-    const { searchParams } = new URL(request.url);
-    const q = searchParams.get('q')?.trim();
-
-    if (!q || q.length < 2) {
-      return NextResponse.json({ voters: [], keys: [], tribes: [] });
-    }
-
-    const [voters, keys, tribes] = await Promise.all([
-      db.voter.findMany({
+    if (entity === "voters" || entity === "all") {
+      const voters = await db.voter.findMany({
         where: {
           OR: [
-            { firstName: { contains: q } },
-            { fatherName: { contains: q } },
-            { fourthName: { contains: q } },
-            { phone: { contains: q } },
-          ]
+            { firstName: { contains: query } },
+            { fatherName: { contains: query } },
+            { nationalId: { contains: query } },
+            { phone: { contains: query } },
+          ],
         },
+        take: perEntity,
         select: {
           id: true,
           firstName: true,
           fatherName: true,
           grandfatherName: true,
           fourthName: true,
-          phone: true,
-          district: true,
-          status: true,
+          nationalId: true,
+          checkedIn: true,
+          tribe: { select: { name: true } },
         },
-        take: 5,
-      }),
-      db.electionKey.findMany({
-        where: {
-          OR: [
-            { firstName: { contains: q } },
-            { keyCode: { contains: q } },
-            { phone: { contains: q } },
-            { fatherName: { contains: q } },
-          ]
-        },
-        select: {
-          id: true,
-          keyCode: true,
-          firstName: true,
-          fatherName: true,
-          phone: true,
-          district: true,
-        },
-        take: 5,
-      }),
-      db.tribe.findMany({
-        where: {
-          name: { contains: q }
-        },
-        select: {
-          id: true,
-          name: true,
-        },
-        take: 5,
-      }),
-    ]);
+      });
+      results.push(
+        ...voters.map((v) => ({
+          entity: "voters",
+          id: v.id,
+          label: `${v.firstName} ${v.fatherName} ${v.grandfatherName} ${v.fourthName}`.trim(),
+          sublabel: `${v.nationalId || ""} — ${v.tribe?.name ?? ""}${v.checkedIn ? " ✓" : ""}`,
+        }))
+      );
+    }
 
-    return NextResponse.json({
-      voters: voters.map(v => ({
-        ...v,
-        fullName: `${v.firstName} ${v.fatherName} ${v.grandfatherName} ${v.fourthName}`.trim(),
-        type: 'voter',
-      })),
-      keys: keys.map(k => ({
-        ...k,
-        fullName: `${k.firstName} ${k.fatherName}`.trim(),
-        type: 'key',
-      })),
-      tribes: tribes.map(t => ({
-        ...t,
-        type: 'tribe',
-      })),
-    });
+    if (entity === "tribes" || entity === "all") {
+      const tribes = await db.tribe.findMany({
+        where: { name: { contains: query } },
+        take: perEntity,
+        select: { id: true, name: true, _count: { select: { voters: true } } },
+      });
+      results.push(
+        ...tribes.map((t) => ({
+          entity: "tribes",
+          id: t.id,
+          label: t.name,
+          sublabel: `${t._count.voters} ناخب`,
+        }))
+      );
+    }
+
+    return NextResponse.json({ results, total: results.length, query });
   } catch (error) {
-    console.error('Error in search API:', error);
-    return NextResponse.json({ error: 'فشل في البحث' }, { status: 500 });
+    console.error("[search] failed:", error);
+    return NextResponse.json({ error: "Search failed" }, { status: 500 });
   }
 }
+
+export const GET = withAuth(searchHandler, { GET: ["ADMIN", "OBSERVER", "KEY_USER"] });
