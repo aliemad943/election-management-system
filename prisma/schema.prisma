@@ -1,6 +1,7 @@
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -13,6 +14,8 @@ model User {
   password  String
   role      String   @default("OBSERVER") // ADMIN, KEY_USER, OBSERVER
   createdAt DateTime @default(now())
+
+  @@index([username])
 }
 
 model Tribe {
@@ -22,116 +25,133 @@ model Tribe {
   voters       Voter[]
   electionKeys ElectionKey[]
   competitors  Competitor[]
+
+  @@index([name])
 }
 
 model SubTribe {
   id           String      @id @default(cuid())
   name         String
   tribeId      String
-  tribe        Tribe       @relation(fields: [tribeId], references: [id])
+  tribe        Tribe       @relation(fields: [tribeId], references: [id], onDelete: Cascade)
   voters       Voter[]
   electionKeys ElectionKey[]
 
   @@unique([name, tribeId])
+  @@index([tribeId])
 }
 
 model ElectionKey {
-  id               String   @id @default(cuid())
-  keyCode          String   @unique
-  firstName        String
-  fatherName       String
-  grandfatherName  String
-  fourthName       String
-  gender           String   @default("ذكر")
-  birthDate        DateTime @default(now())
-  education        String   @default("بكالوريوس")
-  profession       String   @default("")
-  phone            String   @unique
-  socialMedia      Json?
-  province         String   @default("ذي قار")
-  district         String   @default("الغراف")
-  subDistrict      String   @default("")
-  pollingCenter    String   @default("")
-  expectedVotes    Int      @default(0)
-  influenceLevel   Int      @default(1)
-  mobilizationCap  Int      @default(1)
-  loyaltyScore     Int      @default(3)
-  riskLevel        Int      @default(1)
-  supportedVotes   Int      @default(0)
-  neutralVotes     Int      @default(0)
-  weakVotes        Int      @default(0)
-  voteProtection   Int      @default(3)
-  supportReason    Int      @default(3)
-  needsLevel       Int      @default(3)
-  politicalNote    Int      @default(3)
-  organizationalNote Int   @default(3)
-  generalNote      Int      @default(3)
-  trainingLevel    Int      @default(3)
-  keyAccuracyScore Float    @default(1.0)
-  reliabilityLogs  Json?
-  tribeId          String?
-  tribe            Tribe?   @relation(fields: [tribeId], references: [id])
-  subTribeId       String?
-  subTribe         SubTribe? @relation(fields: [subTribeId], references: [id])
-  voters           Voter[]
-  services         Service[]
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String    @id @default(cuid())
+  keyCode           String    @unique
+  firstName         String
+  fatherName        String
+  grandfatherName   String
+  fourthName        String
+  gender            String    @default("ذكر")
+  birthDate         DateTime  @default(now())
+  education         String    @default("بكالوريوس")
+  profession        String    @default("")
+  phone             String    @unique
+  socialMedia       Json?
+  province          String    @default("ذي قار")
+  district          String    @default("الغراف")
+  subDistrict       String    @default("")
+  pollingCenter     String    @default("")
+  expectedVotes     Int       @default(0)
+  influenceLevel    Int       @default(1)
+  mobilizationCap   Int       @default(1)
+  loyaltyScore      Int       @default(3)
+  riskLevel         Int       @default(1)
+  supportedVotes    Int       @default(0)
+  neutralVotes      Int       @default(0)
+  weakVotes         Int       @default(0)
+  voteProtection    Int       @default(3)
+  supportReason     Int       @default(3)
+  needsLevel        Int       @default(3)
+  politicalNote     Int       @default(3)
+  organizationalNote Int     @default(3)
+  generalNote       Int       @default(3)
+  trainingLevel     Int       @default(3)
+  keyAccuracyScore  Float     @default(1.0)
+  reliabilityLogs   Json?
+  tribeId           String?
+  tribe             Tribe?    @relation(fields: [tribeId], references: [id])
+  subTribeId        String?
+  subTribe          SubTribe? @relation(fields: [subTribeId], references: [id])
+  voters            Voter[]
+  services          Service[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([tribeId])
+  @@index([subTribeId])
+  @@index([keyCode])
+  @@index([phone])
 }
 
 model Voter {
-  id               String      @id @default(cuid())
-  firstName        String
-  fatherName       String
-  grandfatherName  String
-  fourthName       String
-  gender           String      @default("ذكر")
-  birthDate        DateTime    @default(now())
-  phone            String?
-  education        String?
-  profession       String?
-  maritalStatus    String?
-  familySize       Int?
-  nationalId       String?     @unique
-  area             String?
-  socialMedia      Json?
-  firstContactDate DateTime?
-  province         String      @default("ذي قار")
-  district         String      @default("الغراف")
-  subDistrict      String      @default("")
-  pollingCenter    String      @default("")
-  ballotStation    String      @default("")
-  status           String      @default("NEUTRAL")
-  supportDegree    Int         @default(3)
-  supportReason    String?
-  voterCategory    String?
-  conversionPath   String?
-  votedOnDay       Boolean     @default(false)
+  id                 String      @id @default(cuid())
+  firstName          String
+  fatherName         String
+  grandfatherName    String
+  fourthName         String
+  gender             String      @default("ذكر")
+  birthDate          DateTime    @default(now())
+  phone              String?
+  education          String?
+  profession         String?
+  maritalStatus      String?
+  familySize         Int?
+  nationalId         String?     @unique
+  area               String?
+  socialMedia        Json?
+  firstContactDate   DateTime?
+  province           String      @default("ذي قار")
+  district           String      @default("الغراف")
+  subDistrict        String      @default("")
+  pollingCenter      String      @default("")
+  ballotStation      String      @default("")
+  status             String      @default("NEUTRAL")
+  supportDegree      Int         @default(3)
+  supportReason      String?
+  voterCategory      String?
+  conversionPath     String?
+  votedOnDay         Boolean     @default(false)
   predictedClusterId String?
-  imputationWeights Json?
-  keyId            String
-  electionKey      ElectionKey @relation(fields: [keyId], references: [id])
-  tribeId          String?
-  tribe            Tribe?      @relation(fields: [tribeId], references: [id])
-  subTribeId       String?
-  subTribe         SubTribe?   @relation(fields: [subTribeId], references: [id])
-  relationship     String?
-  influenceRate    Int         @default(50)
-  isPrimaryFollow  Boolean     @default(true)
-  lastContactDate  DateTime?
-  contactResult    String?
-  nextAction       String?
-  followUpDate     DateTime?
-  latitude         Float?
-  longitude        Float?
-  gpsVerified      Boolean     @default(false)
-  isRegistryVerified Boolean   @default(false)
-  registryVoterId  String?
-  checkedIn        Boolean     @default(false)
-  checkedInAt      DateTime?
-  services         Service[]
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  imputationWeights  Json?
+  keyId              String
+  electionKey        ElectionKey @relation(fields: [keyId], references: [id])
+  tribeId            String?
+  tribe              Tribe?      @relation(fields: [tribeId], references: [id])
+  subTribeId         String?
+  subTribe           SubTribe?   @relation(fields: [subTribeId], references: [id])
+  relationship       String?
+  influenceRate      Int         @default(50)
+  isPrimaryFollow    Boolean     @default(true)
+  lastContactDate    DateTime?
+  contactResult      String?
+  nextAction         String?
+  followUpDate       DateTime?
+  latitude           Float?
+  longitude          Float?
+  gpsVerified        Boolean     @default(false)
+  isRegistryVerified Boolean     @default(false)
+  registryVoterId    String?
+  checkedIn          Boolean     @default(false)
+  checkedInAt        DateTime?
+  services           Service[]
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@index([keyId])
+  @@index([tribeId])
+  @@index([subTribeId])
+  @@index([nationalId])
+  @@index([checkedIn])
+  @@index([tribeId, checkedIn])
+  @@index([firstName])
+  @@index([fatherName])
 }
 
 model Service {
@@ -147,83 +167,91 @@ model Service {
   voter       Voter?       @relation(fields: [voterId], references: [id])
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+
+  @@index([keyId])
+  @@index([voterId])
 }
 
 model CommissionData {
-  id                     String   @id @default(cuid())
-  province               String
-  district               String
-  subDistrict            String
-  pollingCenter          String
-  ballotStation          String
-  registeredVoters       Int
-  historicalTurnout      Float
-  expectedTurnout        Float?
-  provinceRegistered     Int?
-  districtRegistered     Int?
-  subDistrictRegistered  Int?
-  actualTurnout          Float?
-  ageDistribution        Json?
-  genderMale             Int?
-  genderFemale           Int?
-  educationDistribution  Json?
-  provinceCenters        Int?
-  districtCenters        Int?
-  subDistrictCenters     Int?
-  provinceStations       Int?
-  districtStations       Int?
-  subDistrictStations    Int?
-  votersPerCenter        Int?
-  registryUpdateRate     Float?
-  newVotersCount         Int?
-  urbanRuralRatio        Json?
-  votesPerParty          Json?
-  percentagePerParty     Json?
-  votesPerCandidate      Json?
-  percentagePerCandidate Json?
-  resultsByCenter        Json?
-  seatsPerParty          Json?
-  expectedTurnoutRate    Float?
-  resultsGeographic      Json?
-  candidateRanking       Json?
+  id                      String   @id @default(cuid())
+  province                String
+  district                String
+  subDistrict             String
+  pollingCenter           String
+  ballotStation           String
+  registeredVoters        Int
+  historicalTurnout       Float
+  expectedTurnout         Float?
+  provinceRegistered      Int?
+  districtRegistered      Int?
+  subDistrictRegistered   Int?
+  actualTurnout           Float?
+  ageDistribution         Json?
+  genderMale              Int?
+  genderFemale            Int?
+  educationDistribution   Json?
+  provinceCenters         Int?
+  districtCenters         Int?
+  subDistrictCenters      Int?
+  provinceStations        Int?
+  districtStations        Int?
+  subDistrictStations     Int?
+  votersPerCenter         Int?
+  registryUpdateRate      Float?
+  newVotersCount          Int?
+  urbanRuralRatio         Json?
+  votesPerParty           Json?
+  percentagePerParty      Json?
+  votesPerCandidate       Json?
+  percentagePerCandidate  Json?
+  resultsByCenter         Json?
+  seatsPerParty           Json?
+  expectedTurnoutRate     Float?
+  resultsGeographic       Json?
+  candidateRanking        Json?
   candidateWinRateByCenter Json?
-  previousResults        Json?
-  turnoutChange          Float?
-  partyStrengthChange    Json?
-  regionContribution     Float?
-  regionRankByStrength   Int?
-  popularMood            String?
-  hotIssues              Json?
-  opinionTrends          Json?
-  satisfactionRate       Float?
-  opponentStrength       Json?
-  influentialEvents      Json?
-  digitalTrend           Json?
-  threatenedRegions      Json?
-  penetrableRegions      Json?
-  safeRegions            Json?
-  swingRegions           Json?
-  lowTurnoutRegions      Json?
-  highCompetitionRegions Json?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  previousResults         Json?
+  turnoutChange           Float?
+  partyStrengthChange     Json?
+  regionContribution      Float?
+  regionRankByStrength    Int?
+  popularMood             String?
+  hotIssues               Json?
+  opinionTrends           Json?
+  satisfactionRate        Float?
+  opponentStrength        Json?
+  influentialEvents       Json?
+  digitalTrend            Json?
+  threatenedRegions       Json?
+  penetrableRegions       Json?
+  safeRegions             Json?
+  swingRegions            Json?
+  lowTurnoutRegions       Json?
+  highCompetitionRegions  Json?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   @@unique([pollingCenter, ballotStation])
+  @@index([province])
+  @@index([district])
 }
 
 model Competitor {
-  id             String   @id @default(cuid())
-  name           String
-  party          String
-  tribe          String   @default("")
-  baseDistrict   String   @default("")
-  estimatedVotes Int      @default(0)
-  district       String?
-  tribeId        String?
-  notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  tribeRelation  Tribe?   @relation(fields: [tribeId], references: [id])
+  id            String   @id @default(cuid())
+  name          String
+  party         String
+  tribe         String   @default("")
+  baseDistrict  String   @default("")
+  estimatedVotes Int     @default(0)
+  district      String?
+  tribeId       String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tribeRelation Tribe?   @relation(fields: [tribeId], references: [id])
+
+  @@index([tribeId])
+  @@index([name])
 }
 
 model SentimentTrend {
@@ -236,4 +264,7 @@ model SentimentTrend {
   district  String?
   notes     String?
   createdAt DateTime @default(now())
+
+  @@index([region])
+  @@index([source])
 }
