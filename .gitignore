@@ -76,3 +76,4 @@ prisma/schema.postgres.prisma
 prisma/seed.sqlite.ts
 prisma/seed.postgres.ts
 prisma/mini-services/
+.netlify/
