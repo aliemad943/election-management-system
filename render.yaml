@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: election-management-system
+    runtime: docker
+    repo: https://github.com/aliemad943/election-management-system
+    branch: main
+    plan: free
+    envVars:
+      - key: NEXTAUTH_SECRET
+        value: 5b05b34f992f7e60fbc143f1920d4930a5cf0bed58496fbee66cfba0111d41f2
+      - key: JWT_SECRET
+        value: 5b05b34f992f7e60fbc143f1920d4930a5cf0bed58496fbee66cfba0111d41f2
+      - key: DATABASE_URL
+        fromDatabase:
+          name: election-db
+          property: connectionString
+      - key: DIRECT_URL
+        fromDatabase:
+          name: election-db
+          property: connectionString
+
+databases:
+  - name: election-db
+    plan: free
+    databaseName: election
+    user: election_user
