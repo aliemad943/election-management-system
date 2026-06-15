@@ -1,0 +1,20 @@
+{
+  "buildCommand": "prisma generate && next build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "env": {
+    "NEXTAUTH_SECRET": {
+      "description": "Secret for NextAuth.js - use a random 32+ char string",
+      "value": ""
+    },
+    "JWT_SECRET": {
+      "description": "Secret for JWT tokens - use a random 32+ char string",
+      "value": ""
+    },
+    "NEXTAUTH_URL": {
+      "description": "Will be auto-set by Vercel",
+      "value": ""
+    }
+  }
+}
